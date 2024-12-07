@@ -1,0 +1,71 @@
+% Define DH Parameters for the ABB IRB 120-3/0.6 manipulator
+%d(Link Offset-m), a(Link Length-m), alpha(Link Twist-rad), offset(Joint Offset-rad)
+L1 = Link('d', 0.29, 'a', -0, 'alpha', pi/2, 'offset', -pi); % Link 1
+L2 = Link('d', 0, 'a', -0.27, 'alpha', 0, 'offset', -pi/2);  % Link 2
+L3 = Link('d', 0, 'a', 0.07, 'alpha', pi/2, 'offset', 0);     % Link 3
+L4 = Link('d', 0.302, 'a', 0, 'alpha', pi/2, 'offset', pi);   % Link 4
+L5 = Link('d', 0, 'a', 0, 'alpha', pi/2, 'offset', pi);       % Link 5
+L6 = Link('d', 0.072, 'a', 0, 'alpha', -0, 'offset', -0);     % Link 6
+
+% Create the ABB IRB 120-3/0.6 robot model
+robot = SerialLink([L1 L2 L3 L4 L5 L6], 'name', 'ABB IRB 120-3/0.6');
+
+% Define joint angles for each target position(input degrees, and convert to rad using-deg2rad)
+q1 = deg2rad([90, 36.13, -39.83, 0, 94.69, 0]);  % Initial position
+q2 = deg2rad([90, 45.72, 0.38, 0, 44.48, 0]);
+q3 = deg2rad([0.01, -13.19, -63.93, -0.01, 33.85, 0.01]);
+q4 = deg2rad([0.66, 31.26, -16.77, -0.60, 75.51, 0.81]);
+q5 = deg2rad([0.84, 43.92, -62.92, -0.61, 109.01, 0.64]);
+q6 = deg2rad([-90, 38.03, 0.46, 0, 50.93, 0]);
+
+% Define the sequence of movement
+trajectory = {q1, q2, q1, q3, q4, q5, q4, q3, q6, q3, q1};
+
+% Generate trajectory for the robot arm
+num_points = 10;  % Speed control(num points increase-slow)
+q_traj = [];
+t_traj = [];
+
+for i = 1:length(trajectory)-1
+    q_traj_segment = jtraj(trajectory{i}, trajectory{i+1}, num_points);
+    t_traj_segment = linspace(0, 2, num_points);  % Assuming 2 seconds for each segment
+    q_traj = [q_traj; q_traj_segment];
+    t_traj = [t_traj, t_traj_segment + (i-1)*2];
+end
+
+% Plot the trajectory of the robot in 3D space
+figure;
+robot.plot(q_traj);
+title('ABB IRB 120-3/0.6 Robot Motion Trajectory');
+
+% Forward Kinematics: Calculate end-effector positions for the trajectory
+T_traj = robot.fkine(q_traj);
+
+% Extract end-effector positions from the transformation matrices
+positions = transl(T_traj);
+
+% Plot the end-effector path in 3D space
+figure;
+plot3(positions(:,1), positions(:,2), positions(:,3), 'LineWidth', 2);
+xlabel('X (m)');
+ylabel('Y (m)');
+zlabel('Z (m)');
+grid on;
+title('End-Effector Trajectory');
+
+% Calculate and plot velocity profiles for each joint
+dq_traj = diff(q_traj) ./ diff(t_traj');
+
+figure;
+plot(t_traj(1:end-1), dq_traj, 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Joint Velocity (rad/s)');
+legend('Joint 1', 'Joint 2', 'Joint 3', 'Joint 4', 'Joint 5', 'Joint 6');
+grid on;
+title('Joint Velocity Profiles');
+
+% Display the final end-effector positions at each station
+for i = 1:length(trajectory)
+    disp(['End-Effector Position at Target ' num2str(i) ':']);
+    disp(transl(robot.fkine(trajectory{i})));
+end
